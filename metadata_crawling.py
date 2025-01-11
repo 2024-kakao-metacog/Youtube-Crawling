@@ -147,6 +147,7 @@ def main(url, max_videos=10000):
 
     # Driver start
     driver.get(url)
+    driver.implicity_wait(10)
 
     video_counter = 0
     for video_order in range(1, max_videos+1):
