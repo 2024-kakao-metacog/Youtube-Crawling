@@ -157,12 +157,14 @@ def main(url, max_videos=10000):
             fetch_dynamic_data_with_selenium(driver, video_metadata, video_order)
 
             # Click for Next Video
+            WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, f'/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[5]/div[2]/ytd-button-renderer/yt-button-shape/button')))
             next_video_btn = driver.find_element(By.XPATH, "/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[5]/div[2]/ytd-button-renderer/yt-button-shape/button")
             next_video_btn.click()
 
         # 광고 영상인 경우(건너뛰기)
         except Exception as e:
             # Click for Next Video
+            WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, f'/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[5]/div[2]/ytd-button-renderer/yt-button-shape/button')))
             next_video_btn = driver.find_element(By.XPATH, "/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[5]/div[2]/ytd-button-renderer/yt-button-shape/button")
             next_video_btn.click()
 
