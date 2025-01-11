@@ -60,6 +60,7 @@ def fetch_metadata_with_bs4(video_url: str, video_metadata: dict) -> dict:
 
     return video_metadata
 
+
 def fetch_dynamic_data_with_selenium(driver: webdriver.Chrome, video_metadata: dict, video_order: int) -> dict:
     """
     Fetch YouTube video metadata dynamically using Selenium.
@@ -110,6 +111,7 @@ def fetch_dynamic_data_with_selenium(driver: webdriver.Chrome, video_metadata: d
 
     return video_metadata
 
+
 def main(url, max_videos=10000):
     """
     Main function to scrape metadata from YouTube Shorts videos.
@@ -146,6 +148,7 @@ def main(url, max_videos=10000):
     # Driver start
     driver.get(url)
 
+    video_counter = 0
     for video_order in range(1, max_videos+1):
         video_metadata = {}
 
@@ -167,7 +170,10 @@ def main(url, max_videos=10000):
         video_metadata_list.append(video_metadata)
 
         # 테스트를 위한 메타데이터 출력
+        # TODO: File writing
+        video_counter += 1
         print(video_order)
+        print(video_counter)
         for key, value in video_metadata.items():
             print(f"{key}: {value}")
         print()
