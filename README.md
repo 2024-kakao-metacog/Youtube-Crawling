@@ -21,4 +21,6 @@ Youtube Shorts의 Metadata를 자동으로 Crawling 해주는 코드입니다.
 python3.11 -m venv .venv # 가상환경 생성
 
 pip install -r requirements.txt # 실행에 필요한 모든 패키지 설치
+
+python3.11 metadata_crawling.py # 크롤링 스크립트 실행
 ```
