@@ -82,8 +82,26 @@ def fetch_dynamic_data_with_selenium(driver: webdriver.Chrome, video_metadata: d
         dict: Updated `video_metadata` dictionary with the fetched metadata.
     """
 
-    # Wait until Username is rendered
-    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, f'/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[3]/div[2]/ytd-reel-video-renderer[{video_order}]/div[4]/ytd-reel-player-overlay-renderer/div[1]/div[1]/div/yt-reel-metapanel-view-model')))
+    # Current URL
+    current_url = driver.current_url
+    video_metadata["currentUrl"] = current_url
+
+    # Crawl static data using bs4
+    static_metadata = fetch_metadata_with_bs4(current_url, video_metadata)
+
+    if not static_metadata:
+        return None
+
+    # 현재 영상이 광고 영상인지 확인
+    # 광고 영상이 아닌 경우 예외 발생 -> 다음 메타데이터 수집
+    try:
+        ad_renderer = driver.find_element(By.XPATH, f'/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[3]/div[2]/ytd-reel-video-renderer[{video_order}]/div[4]/ytd-ad-slot-renderer')
+        print(ad_renderer)
+        if ad_renderer:
+            return None
+    
+    except Exception as e:
+        pass
 
     # Like Count
     like_button = driver.find_element(By.XPATH, f"/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[3]/div[2]/ytd-reel-video-renderer[{video_order}]/div[4]/ytd-reel-player-overlay-renderer/div[2]/div/div[1]/ytd-like-button-renderer/ytd-toggle-button-renderer[1]/yt-button-shape/label/div/span")
@@ -101,13 +119,6 @@ def fetch_dynamic_data_with_selenium(driver: webdriver.Chrome, video_metadata: d
     else:
         username = driver.find_element(By.XPATH, f"/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[3]/div[2]/ytd-reel-video-renderer[{video_order}]/div[4]/ytd-reel-player-overlay-renderer/div[1]/div[1]/div/yt-reel-metapanel-view-model/div[2]/yt-reel-channel-bar-view-model/span/a")
         video_metadata["userName"] = username.text
-
-    # Current URL
-    current_url = driver.current_url
-    video_metadata["currentUrl"] = current_url
-
-    # Crawl static data using bs4
-    fetch_metadata_with_bs4(current_url, video_metadata)
 
     return video_metadata
 
@@ -132,8 +143,6 @@ def main(url, max_videos=10000):
         - Video order and its metadata for each processed video.
     """
 
-    video_metadata_list = []
-
     # Selenium Chrome options
     options = Options()
     options.add_argument("--headless")  
@@ -147,39 +156,41 @@ def main(url, max_videos=10000):
 
     # Driver start
     driver.get(url)
-    driver.implicity_wait(10)
+    driver.implicitly_wait(3)
 
     video_counter = 0
     for video_order in range(1, max_videos+1):
         video_metadata = {}
 
         try:
-            fetch_dynamic_data_with_selenium(driver, video_metadata, video_order)
+            video_metadata = fetch_dynamic_data_with_selenium(driver, video_metadata, video_order)
 
             # Click for Next Video
-            WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, f'/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[5]/div[2]/ytd-button-renderer/yt-button-shape/button')))
+            WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, f'/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[5]/div[2]/ytd-button-renderer/yt-button-shape/button')))
             next_video_btn = driver.find_element(By.XPATH, "/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[5]/div[2]/ytd-button-renderer/yt-button-shape/button")
             next_video_btn.click()
 
-        # 광고 영상인 경우(건너뛰기)
+        # 예기치 않은 예외 발생 시
+        # 다음 영상으로 넘어가기
         except Exception as e:
             # Click for Next Video
-            WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.XPATH, f'/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[5]/div[2]/ytd-button-renderer/yt-button-shape/button')))
+            WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH, f'/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[5]/div[2]/ytd-button-renderer/yt-button-shape/button')))
             next_video_btn = driver.find_element(By.XPATH, "/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[5]/div[2]/ytd-button-renderer/yt-button-shape/button")
             next_video_btn.click()
-
             continue
-
-        video_metadata_list.append(video_metadata)
 
         # 테스트를 위한 메타데이터 출력
         # TODO: File writing
-        video_counter += 1
         print(video_order)
-        print(video_counter)
-        for key, value in video_metadata.items():
-            print(f"{key}: {value}")
-        print()
+        if video_metadata:
+            video_counter += 1
+            print(video_counter)
+            for key, value in video_metadata.items():
+                print(f"{key}: {value}")
+            print()
+        else:
+            print("데이터를 수집하지 못하였습니다.")
+            print()
 
 
 if __name__ == "__main__":
