@@ -8,7 +8,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from xpath_repository import XPATHS
+from xpath_repository import XPATHS, SELECTORS
+
+import csv
 
 
 def fetch_metadata_with_bs4(video_url: str, video_metadata: dict) -> dict:
@@ -63,91 +65,79 @@ def fetch_metadata_with_bs4(video_url: str, video_metadata: dict) -> dict:
     return video_metadata
 
 
-def fetch_dynamic_data_with_selenium(driver: webdriver.Chrome, video_metadata: dict, video_order: int) -> dict:
+def fetch_dynamic_data_with_selenium(driver: webdriver.Chrome, video_url: str, video_metadata: dict, video_order: int) -> dict:
     """
-    Fetch YouTube video metadata dynamically using Selenium.
+    Fetch YouTube Shorts video metadata dynamically using Selenium.
 
     Parameters:
         driver (webdriver.Chrome): The Selenium WebDriver instance.
+        video_url (str): URL of the current YouTube Shorts video.
         video_metadata (dict): Dictionary to store video metadata.
         video_order (int): The position of the video in the YouTube Shorts reel.
 
     Retrieves the following metadata dynamically:
-        - Like Count: Number of likes using the like button's text.
-        - Comment Count: Number of comments using the comment button's text.
-        - Username: The uploader's username, using multiple fallback methods.
-        - Current URL: The URL of the currently playing video.
+        - Like Count: Number of likes from the like button text.
+        - Comment Count: Number of comments from the comment button text.
+        - Username: The uploader's username from the channel metadata.
+        - Current URL: URL of the currently playing video.
 
-    Additionally, calls `fetch_metadata_with_bs4` to retrieve static metadata.
+    Calls `fetch_metadata_with_bs4` to retrieve static metadata.
 
     Returns:
         dict: Updated `video_metadata` dictionary with the fetched metadata.
     """
 
-    # Current URL
-    current_url = driver.current_url
-    video_metadata["currentUrl"] = current_url
+
+    # 동적 요소 모두 로딩될 때까지 대기
+    # 광고인 경우 Timeout
+    meta_panel = WebDriverWait(driver, 2).until(EC.presence_of_element_located((By.XPATH, XPATHS["meta_panel"].format(video_order=video_order))))
+    action_panel = WebDriverWait(driver, 2).until(EC.presence_of_element_located((By.XPATH, XPATHS["action_panel"].format(video_order=video_order))))
+
+    # VideoURL
+    video_url = driver.current_url
+    video_metadata["currentUrl"] = video_url
 
     # Crawl static data using bs4
-    static_metadata = fetch_metadata_with_bs4(current_url, video_metadata)
+    static_metadata = fetch_metadata_with_bs4(video_url, video_metadata)
 
     if not static_metadata:
         return None
 
-    # 현재 영상이 광고 영상인지 확인
-    # 광고 영상이 아닌 경우 예외 발생 -> 다음 메타데이터 수집
-    try:
-        ad_renderer = driver.find_element(By.XPATH, XPATHS["ad_renderer"].format(video_order=video_order))
-        print(ad_renderer)
-        if ad_renderer:
-            return None
-    
-    except Exception as e:
-        pass
-
     # Like Count
-    like_button = driver.find_element(By.XPATH, XPATHS["like_button"].format(video_order=video_order))
+    like_button = action_panel.find_element(By.CSS_SELECTOR, SELECTORS["like_button"])
     video_metadata["likeCount"] = like_button.text
 
     # Comment Count
-    comment_count = driver.find_element(By.XPATH, XPATHS["comment_count"].format(video_order=video_order))
+    comment_count = action_panel.find_element(By.CSS_SELECTOR, SELECTORS["comment_count"])
     video_metadata["commentCount"] = comment_count.text
 
     # Username
-    username = driver.find_elements(By.XPATH, XPATHS["username"].format(video_order=video_order))
+    username = meta_panel.find_element(By.CSS_SELECTOR, SELECTORS["username"])
+    video_metadata["username"] = username.text
 
-    if username:
-        video_metadata["userName"] = username[0].text
-    else:
-        username = driver.find_element(By.XPATH, XPATHS["username"].format(video_order=video_order))
-        video_metadata["userName"] = username.text
+    # Click for Next Video
+    next_video_btn = driver.find_element(By.CSS_SELECTOR, SELECTORS["next_video_btn"])
+    next_video_btn.click()
 
     return video_metadata
 
 
-def main(url, max_videos=10000):
+def initiate_driver():
     """
-    Main function to scrape metadata from YouTube Shorts videos.
+    Initialize a headless Selenium WebDriver for scraping.
 
-    Parameters:
-        url (str): The URL of the YouTube Shorts page to start scraping.
-        max_videos (int): Maximum number of videos to process (default is 10,000).
+    Configures the following options:
+        - Headless mode for non-GUI execution.
+        - Disables sandboxing for compatibility.
+        - Sets window size for consistent rendering.
 
-    Workflow:
-        - Initializes a headless Selenium WebDriver.
-        - Navigates to the provided YouTube Shorts URL.
-        - Iterates through videos in the reel up to `max_videos`.
-        - Calls `fetch_dynamic_data_with_selenium` to scrape each video's metadata.
-        - Handles errors (e.g., ads) by skipping to the next video.
-        - Stores scraped metadata in `video_metadata_list`.
-
-    Prints:
-        - Video order and its metadata for each processed video.
+    Returns:
+        webdriver.Chrome: The initialized WebDriver instance.
     """
-
+    
     # Selenium Chrome options
     options = Options()
-    options.add_argument("--headless")  
+    # options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=860,540")
@@ -156,46 +146,59 @@ def main(url, max_videos=10000):
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=options)
 
-    # Driver start
-    driver.get(url)
-    driver.implicitly_wait(3)
+    return driver
 
-    video_counter = 0
-    for video_order in range(1, max_videos+1):
+
+def main(url):
+    """
+    Main function to scrape metadata from YouTube Shorts videos.
+
+    Parameters:
+        url (str): The URL of the YouTube Shorts page to start scraping.
+
+    Workflow:
+        - Initializes a headless Selenium WebDriver.
+        - Navigates to the provided YouTube Shorts URL.
+        - Iterates through videos in the reel sequentially.
+        - Calls `fetch_dynamic_data_with_selenium` to scrape each video's metadata.
+        - Handles errors (e.g., ads) by skipping to the next video.
+        - Saves scraped metadata to a CSV file.
+    """
+
+    # CSV 파일 저장 경로
+    csv_file_path = "video_metadata.csv"
+
+    # Driver start
+    driver = initiate_driver()
+    driver.get(url)
+
+    video_order = 1
+    while True:
         video_metadata = {}
 
         try:
-            video_metadata = fetch_dynamic_data_with_selenium(driver, video_metadata, video_order)
+            video_metadata = fetch_dynamic_data_with_selenium(driver, url, video_metadata, video_order)
 
-            # Click for Next Video
-            WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, XPATHS["next_video_btn"].format(video_order=video_order))))
-            next_video_btn = driver.find_element(By.XPATH, XPATHS["next_video_btn"].format(video_order=video_order))
-            next_video_btn.click()
-
-        # 예기치 않은 예외 발생 시
+        # 예기치 않은 예외 발생 시(ex. 광고 영상)
         # 다음 영상으로 넘어가기
         except Exception as e:
             # Click for Next Video
-            WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, XPATHS["next_video_btn"].format(video_order=video_order))))
-            next_video_btn = driver.find_element(By.XPATH, XPATHS["next_video_btn"].format(video_order=video_order))
+            next_video_btn = driver.find_element(By.CSS_SELECTOR, SELECTORS["next_video_btn"])
             next_video_btn.click()
+
+            video_order += 1
             continue
 
         # 테스트를 위한 메타데이터 출력
         # TODO: File writing
-        print(video_order)
-        if video_metadata:
-            video_counter += 1
-            print(video_counter)
-            for key, value in video_metadata.items():
-                print(f"{key}: {value}")
-            print()
-        else:
-            print("데이터를 수집하지 못하였습니다.")
-            print()
+        # CSV로 저장
+        with open(csv_file_path, mode='a', newline='', encoding='utf-8') as file:
+            writer = csv.DictWriter(file, fieldnames=video_metadata.keys())
+            writer.writerow(video_metadata)  # 데이터 작성
 
+        video_order += 1
 
 if __name__ == "__main__":
-    # # Testing both functions
+    # Start scraping from a given Shorts video URL
     video_url = "https://www.youtube.com/shorts/SB4Rc6aq9Dg"
     main(video_url)
