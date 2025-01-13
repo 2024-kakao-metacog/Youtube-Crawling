@@ -8,6 +8,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
+from xpath_repository import XPATHS
+
 
 def fetch_metadata_with_bs4(video_url: str, video_metadata: dict) -> dict:
     """
@@ -95,7 +97,7 @@ def fetch_dynamic_data_with_selenium(driver: webdriver.Chrome, video_metadata: d
     # 현재 영상이 광고 영상인지 확인
     # 광고 영상이 아닌 경우 예외 발생 -> 다음 메타데이터 수집
     try:
-        ad_renderer = driver.find_element(By.XPATH, f'/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[3]/div[2]/ytd-reel-video-renderer[{video_order}]/div[4]/ytd-ad-slot-renderer')
+        ad_renderer = driver.find_element(By.XPATH, XPATHS["ad_renderer"].format(video_order=video_order))
         print(ad_renderer)
         if ad_renderer:
             return None
@@ -104,20 +106,20 @@ def fetch_dynamic_data_with_selenium(driver: webdriver.Chrome, video_metadata: d
         pass
 
     # Like Count
-    like_button = driver.find_element(By.XPATH, f"/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[3]/div[2]/ytd-reel-video-renderer[{video_order}]/div[4]/ytd-reel-player-overlay-renderer/div[2]/div/div[1]/ytd-like-button-renderer/ytd-toggle-button-renderer[1]/yt-button-shape/label/div/span")
+    like_button = driver.find_element(By.XPATH, XPATHS["like_button"].format(video_order=video_order))
     video_metadata["likeCount"] = like_button.text
 
     # Comment Count
-    comment_count = driver.find_element(By.XPATH, f"/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[3]/div[2]/ytd-reel-video-renderer[{video_order}]/div[4]/ytd-reel-player-overlay-renderer/div[2]/div/div[2]/ytd-button-renderer/yt-button-shape/label/div/span")
+    comment_count = driver.find_element(By.XPATH, XPATHS["comment_count"].format(video_order=video_order))
     video_metadata["commentCount"] = comment_count.text
 
     # Username
-    username = driver.find_elements(By.XPATH, f"/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[3]/div[2]/ytd-reel-video-renderer[{video_order}]/div[4]/ytd-reel-player-overlay-renderer/div[1]/div[1]/div/yt-reel-metapanel-view-model/div[1]/yt-reel-channel-bar-view-model/span/a")
+    username = driver.find_elements(By.XPATH, XPATHS["username"].format(video_order=video_order))
 
     if username:
         video_metadata["userName"] = username[0].text
     else:
-        username = driver.find_element(By.XPATH, f"/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[3]/div[2]/ytd-reel-video-renderer[{video_order}]/div[4]/ytd-reel-player-overlay-renderer/div[1]/div[1]/div/yt-reel-metapanel-view-model/div[2]/yt-reel-channel-bar-view-model/span/a")
+        username = driver.find_element(By.XPATH, XPATHS["username"].format(video_order=video_order))
         video_metadata["userName"] = username.text
 
     return video_metadata
@@ -166,16 +168,16 @@ def main(url, max_videos=10000):
             video_metadata = fetch_dynamic_data_with_selenium(driver, video_metadata, video_order)
 
             # Click for Next Video
-            WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, f'/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[5]/div[2]/ytd-button-renderer/yt-button-shape/button')))
-            next_video_btn = driver.find_element(By.XPATH, "/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[5]/div[2]/ytd-button-renderer/yt-button-shape/button")
+            WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, XPATHS["next_video_btn"].format(video_order=video_order))))
+            next_video_btn = driver.find_element(By.XPATH, XPATHS["next_video_btn"].format(video_order=video_order))
             next_video_btn.click()
 
         # 예기치 않은 예외 발생 시
         # 다음 영상으로 넘어가기
         except Exception as e:
             # Click for Next Video
-            WebDriverWait(driver, 2).until(EC.element_to_be_clickable((By.XPATH, f'/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[5]/div[2]/ytd-button-renderer/yt-button-shape/button')))
-            next_video_btn = driver.find_element(By.XPATH, "/html/body/ytd-app/div[1]/ytd-page-manager/ytd-shorts/div[5]/div[2]/ytd-button-renderer/yt-button-shape/button")
+            WebDriverWait(driver, 1).until(EC.element_to_be_clickable((By.XPATH, XPATHS["next_video_btn"].format(video_order=video_order))))
+            next_video_btn = driver.find_element(By.XPATH, XPATHS["next_video_btn"].format(video_order=video_order))
             next_video_btn.click()
             continue
 
