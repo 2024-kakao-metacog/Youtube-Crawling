@@ -188,7 +188,7 @@ def main(url):
     video_metadata_list = []
     video_url = url
     while True:
-        if video_order % 10 == 0:
+        if video_order % 100 == 0:
             video_order = 1
             driver.quit()
             driver = initiate_driver()
