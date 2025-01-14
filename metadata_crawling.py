@@ -10,19 +10,22 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from xpath_repository import XPATHS, SELECTORS
 
+import os
 import csv
 
 import traceback
 
 
-def save_metadata_in_csv(video_metadata, path="video_metadata.csv"):
-    # CSV 파일 저장 경로
-    csv_file_path = "video_metadata.csv"
-
+def save_metadata_in_csv(video_metadata_list: list, path="video_metadata.csv") -> None:
     # CSV로 저장
-    with open(csv_file_path, mode='a', newline='', encoding='utf-8') as file:
-        writer = csv.DictWriter(file, fieldnames=video_metadata.keys())
-        writer.writerow(video_metadata)  # 데이터 작성
+    with open(path, mode='a', newline='', encoding='utf-8') as file:
+        writer = csv.DictWriter(file, fieldnames=video_metadata_list[0].keys())
+
+        # 파일이 비어 있는지 확인
+        if os.stat(path).st_size == 0:  # 파일 크기가 0이라면
+            writer.writeheader()  # 헤더 작성
+        writer = csv.DictWriter(file, fieldnames=video_metadata_list[0].keys())
+        writer.writerows(video_metadata_list)  # 데이터 작성
 
 
 def fetch_metadata_with_bs4(video_url: str, video_metadata: dict) -> dict:
@@ -182,19 +185,22 @@ def main(url):
     driver.get(url)
 
     video_order = 1
-    video_metadata = {}
+    video_metadata_list = []
     video_url = url
     while True:
-        if video_order % 100 == 0:
+        if video_order % 10 == 0:
             video_order = 1
             driver.quit()
             driver = initiate_driver()
             driver.get(video_url)
 
+            save_metadata_in_csv(video_metadata_list)
+
             # Click for Next Video
             next_video_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, SELECTORS["next_video_btn"])))
             next_video_btn.click()
 
+            video_metadata_list = []
             video_order += 1
             continue
 
@@ -214,12 +220,11 @@ def main(url):
             video_order += 1
             continue
 
-        save_metadata_in_csv(video_metadata)
-        print(video_metadata)
-        print(video_url)
+        if video_metadata:
+            video_metadata_list.append(video_metadata)
+            video_url = video_metadata["currentUrl"]
 
         video_order += 1
-        video_url = video_metadata["currentUrl"]
 
 if __name__ == "__main__":
     # Start scraping from a given Shorts video URL
