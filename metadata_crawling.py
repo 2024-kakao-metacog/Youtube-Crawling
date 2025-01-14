@@ -12,6 +12,18 @@ from xpath_repository import XPATHS, SELECTORS
 
 import csv
 
+import traceback
+
+
+def save_metadata_in_csv(video_metadata, path="video_metadata.csv"):
+    # CSV 파일 저장 경로
+    csv_file_path = "video_metadata.csv"
+
+    # CSV로 저장
+    with open(csv_file_path, mode='a', newline='', encoding='utf-8') as file:
+        writer = csv.DictWriter(file, fieldnames=video_metadata.keys())
+        writer.writerow(video_metadata)  # 데이터 작성
+
 
 def fetch_metadata_with_bs4(video_url: str, video_metadata: dict) -> dict:
     """
@@ -137,7 +149,7 @@ def initiate_driver():
     
     # Selenium Chrome options
     options = Options()
-    options.add_argument("--headless")
+    # options.add_argument("--headless")
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=860,540")
@@ -165,23 +177,36 @@ def main(url):
         - Saves scraped metadata to a CSV file.
     """
 
-    # CSV 파일 저장 경로
-    csv_file_path = "video_metadata.csv"
-
     # Driver start
     driver = initiate_driver()
     driver.get(url)
 
     video_order = 1
+    video_metadata = {}
+    video_url = url
     while True:
+        if video_order % 100 == 0:
+            video_order = 1
+            driver.quit()
+            driver = initiate_driver()
+            driver.get(video_url)
+
+            # Click for Next Video
+            next_video_btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((By.CSS_SELECTOR, SELECTORS["next_video_btn"])))
+            next_video_btn.click()
+
+            video_order += 1
+            continue
+
         video_metadata = {}
 
         try:
-            video_metadata = fetch_dynamic_data_with_selenium(driver, url, video_metadata, video_order)
+            video_metadata = fetch_dynamic_data_with_selenium(driver, video_url, video_metadata, video_order)
 
         # 예기치 않은 예외 발생 시(ex. 광고 영상)
         # 다음 영상으로 넘어가기
         except Exception as e:
+            print(traceback.format_exc())
             # Click for Next Video
             next_video_btn = driver.find_element(By.CSS_SELECTOR, SELECTORS["next_video_btn"])
             next_video_btn.click()
@@ -189,14 +214,12 @@ def main(url):
             video_order += 1
             continue
 
-        # 테스트를 위한 메타데이터 출력
-        # TODO: File writing
-        # CSV로 저장
-        with open(csv_file_path, mode='a', newline='', encoding='utf-8') as file:
-            writer = csv.DictWriter(file, fieldnames=video_metadata.keys())
-            writer.writerow(video_metadata)  # 데이터 작성
+        save_metadata_in_csv(video_metadata)
+        print(video_metadata)
+        print(video_url)
 
         video_order += 1
+        video_url = video_metadata["currentUrl"]
 
 if __name__ == "__main__":
     # Start scraping from a given Shorts video URL
