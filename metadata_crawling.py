@@ -13,6 +13,16 @@ from xpath_repository import XPATHS, SELECTORS
 import csv
 
 
+def save_metadata_in_csv(video_metadata, path="video_metadata.csv"):
+    # CSV 파일 저장 경로
+    csv_file_path = "video_metadata.csv"
+
+    # CSV로 저장
+    with open(csv_file_path, mode='a', newline='', encoding='utf-8') as file:
+        writer = csv.DictWriter(file, fieldnames=video_metadata.keys())
+        writer.writerow(video_metadata)  # 데이터 작성
+
+
 def fetch_metadata_with_bs4(video_url: str, video_metadata: dict) -> dict:
     """
     Fetch YouTube video metadata using BeautifulSoup.
@@ -165,9 +175,6 @@ def main(url):
         - Saves scraped metadata to a CSV file.
     """
 
-    # CSV 파일 저장 경로
-    csv_file_path = "video_metadata.csv"
-
     # Driver start
     driver = initiate_driver()
     driver.get(url)
@@ -189,12 +196,7 @@ def main(url):
             video_order += 1
             continue
 
-        # 테스트를 위한 메타데이터 출력
-        # TODO: File writing
-        # CSV로 저장
-        with open(csv_file_path, mode='a', newline='', encoding='utf-8') as file:
-            writer = csv.DictWriter(file, fieldnames=video_metadata.keys())
-            writer.writerow(video_metadata)  # 데이터 작성
+        save_metadata_in_csv(video_metadata)
 
         video_order += 1
 
